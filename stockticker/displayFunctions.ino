@@ -48,26 +48,32 @@ byte displayLetters[44][charWidth] = {  // [A] = chars/digits contained in array
   {0x24, 0x2a, 0xff, 0x2a, 0x12}// $
 };
 
-void displayled() {
+byte displayled() {
   String inputString;
-  char Amount[sizeof(marketprice_float) + 1];
+  char Amount[sizeof(marketprice_float) + 2];
   dtostrf(marketprice_float, sizeof(marketprice_float), 2, Amount);
 
-  char Increase[sizeof(increase_float) + 1];
+  char Increase[sizeof(increase_float) + 2];
   dtostrf(increase_float, sizeof(increase_float), 2, Increase);
 
-  char Ratio[sizeof(ratio_float) + 1];
+  char Ratio[sizeof(ratio_float) + 2];
   dtostrf(ratio_float, sizeof(ratio_float), 2, Ratio);
 
-
-  if (Increase[0] == '-'){
-  inputString = (tickerString+" "+"$"+Amount+" "+"|"+Increase+" "+"|"+Ratio+"% ");
+  if (increase_float < 0){
+  inputString = ((String)tickerSymbol+" "+"$"+Amount+" "+"|"+Increase+" "+"|"+Ratio+"% ");
   }
-  else if (Increase[0] != '-'){
-  inputString = (tickerString+" "+"$"+Amount+" "+"^"+"+"+Increase+" "+"^"+"+"+Ratio+"% ");
+  else if (increase_float >=0){
+  inputString = ((String)tickerSymbol+" "+"$"+Amount+" "+"^"+"+"+Increase+" "+"^"+"+"+Ratio+"% ");
   }
-
+  Serial.println(inputString);
+  
   for (int i = 0; i < inputString.length(); i++) {
+
+    byte Return = hanldeBlueetoothData();
+    if(Return == 1){
+      return 1;
+    }
+
     char currentChar = inputString[i];
     int currentCol, colorMode;// = int(colString[i]) - 48; // minus 48 because int("0") will return the ascii value of char '0' (48)
 
@@ -110,7 +116,7 @@ void displayled() {
       else if (currentStatus == 1) currentStatus = 0;
       setStatusIndicator(currentStatus);
 
-      nudgeColumns(displayLetters[indexValue][x], currentCol); // inputCols[i]); // strip.Color(0,0,255));
+      nudgeColumns(displayLetters[indexValue][x], currentCol); // inputCols[i]); // panel.Color(0,0,255));
       displayUpdate(0);
 
       delay(DelayValue);
@@ -122,16 +128,8 @@ void displayled() {
     displayUpdate(0);
     delay(DelayValue); // this will be 200 as per the rest once confirmed that the double jump issue is done!
   }
-}
 
-void setBrightnessTo(int value){
-  //value can be in between 0 to 100
-  int pwmVal = map(value, 0,100, 0, 255);
-  strip.setBrightness(value);
-}
-void setScrollSpeedTo(int value){
-  //value can be in between 0 to 100
-  DelayValue = map(value, 0,100, 500, 5);
+  return 0;
 }
 
 int getIntLength(int value) {
@@ -162,11 +160,11 @@ void setMappedColor(int columnID, int rowID, long pixelColor) {
   int mappedPixel = getMappedPixel(columnID, rowID);
 
   if (mappedPixel < ledTotal) {
-    strip.setPixelColor(mappedPixel, pixelColor);
+    panel.setPixelColor(mappedPixel, pixelColor);
   }
   else {
     mappedPixel = mappedPixel - ledTotal;
-    strip.setPixelColor(mappedPixel, pixelColor);
+    panel.setPixelColor(mappedPixel, pixelColor);
   }
 }
 
@@ -194,14 +192,13 @@ void displayUpdate(long backColor) {
   for (int i = 0; i <= columnSize; i++) {
     int columnData[rowSize + 1] = {0};
     convertToBits(displayOutput[i], columnData);
-
     for (int j = 0; j <= rowSize; j++) {
       if (columnData[rowSize - j] == 1) setMappedColor(i, j, colorLookup(displayColors[i])); // was displayColors[i][j] before memory save
     }
   }
 
-  strip.show();
-  //stripB.show();
+  panel.show();
+  
 
 }
 
@@ -225,28 +222,28 @@ long colorLookup(int inputColor) {
   long outputColor = 0;
   switch (inputColor) {
     case 0:
-      outputColor = strip.Color(255, 255, 255); // white
+      outputColor = panel.Color(255, 255, 255); // white
       break;
     case 1:
-      outputColor = strip.Color(255, 0, 0); // red
+      outputColor = panel.Color(255, 0, 0); // red
       break;
     case 2:
-      outputColor = strip.Color(0, 255, 0); // green
+      outputColor = panel.Color(0, 255, 0); // green
       break;
     case 3:
-      outputColor = strip.Color(0, 0, 255); // blue
+      outputColor = panel.Color(0, 0, 255); // blue
       break;
     case 4:
-      outputColor = strip.Color(255, 255, 0); // yellow/amber
+      outputColor = panel.Color(255, 255, 0); // yellow/amber
       break;
     case 5:
-      outputColor = strip.Color(0, 255, 255); // cyan
+      outputColor = panel.Color(0, 255, 255); // cyan
       break;
     case 6:
-      outputColor = strip.Color(255, 0, 255); // magenta
+      outputColor = panel.Color(255, 0, 255); // magenta
       break;
     default:
-      outputColor = strip.Color(255, 255, 255); // white
+      outputColor = panel.Color(255, 255, 255); // white
       break;
   }
 
@@ -254,9 +251,19 @@ long colorLookup(int inputColor) {
 }
 
 void setStatusIndicator(byte inputStatus) {
-  if (inputStatus == 0) {
-    digitalWrite(13, LOW);
-  } else {
-    digitalWrite(13, HIGH);
-  }
+//  if (inputStatus == 0) {
+//    digitalWrite(16, LOW);
+//  } else {
+//    digitalWrite(16, HIGH);
+//  }
+}
+
+void setBrightnessTo(int value){
+  //value can be in between 0 to 100
+  int pwmVal = map(value, 0,100, 0, 255);
+  panel.setBrightness(value);
+}
+void setScrollSpeedTo(int value){
+  //value can be in between 0 to 100
+  DelayValue = map(value, 0,100, 500, 5);
 }

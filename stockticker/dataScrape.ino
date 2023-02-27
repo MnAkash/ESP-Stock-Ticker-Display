@@ -1,13 +1,17 @@
-void stockScrape(char *tickerName) {
+//Returns true if successfully scrapped data, fasle otherwise
+bool stockScrape(char *tickerName) {
   char url[80] = "";
   strcat(url, serverName);
   strcat(url, tickerName);
   strcat(url, token);
-
+  
   //Serial.println(url);
   //Definining Everythinig into Zero and Null before sraping data
-  const char* tickerSymbol = "_";
-  tickerString = tickerSymbol;
+//  const char* tickerSymbol = "-";
+//  tickerString = tickerSymbol;
+  memset(tickerSymbol, 0, strlen(tickerSymbol));
+  strcpy(tickerSymbol, "-");
+  
   marketprice_float = 0.0;
   increase_float = 0.0;
   ratio_float = 0.0;
@@ -29,13 +33,13 @@ void stockScrape(char *tickerName) {
           {
             Serial.print(F("deserializeJson() failed: "));
             Serial.println(error.f_str());
-            return;
+            return 0;
           }
           JsonObject chart_result_0 = doc["chart"]["result"][0];
           JsonObject chart_result_0_meta = chart_result_0["meta"];
 
-          const char* tickerSymbol = chart_result_0_meta["symbol"];
-          tickerString = tickerSymbol;
+          strcpy(tickerSymbol , chart_result_0_meta["symbol"]);
+          //tickerString = tickerSymbol;
 
 
           marketprice_float = chart_result_0_meta["regularMarketPrice"];
@@ -49,28 +53,33 @@ void stockScrape(char *tickerName) {
             ratio_float = (increase_float / PreviousClose_float) * 100;
           }
 
+          
           //I choosed to display it on the serial monitor to help you debug
-          Serial.print(tickerSymbol);
-          Serial.print(" ");
-          Serial.print(marketprice_float);
-          Serial.print(" ");
-          Serial.print(increase_float);
-          Serial.print(" ");
-          Serial.print(ratio_float);
-          Serial.println("%");
+//          Serial.print(tickerSymbol);
+//          Serial.print(" ");
+//          Serial.print(marketprice_float);
+//          Serial.print(" ");
+//          Serial.print(increase_float);
+//          Serial.print(" ");
+//          Serial.print(ratio_float);
+//          Serial.println("%");
 
         }
       }
       else //If we can't get data
       {
         Serial.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
+        return false;
       }
 
       http.end();
+
+      return true;
     }
   }
   else {
     Serial.println("WiFi Disconnected");
+    return false;
   }
-
+  return true;
 }
