@@ -50,27 +50,39 @@ byte displayLetters[44][charWidth] = {  // [A] = chars/digits contained in array
 
 byte displayled() {
   String inputString;
-  char Amount[sizeof(marketprice_float) + 2];
-  dtostrf(marketprice_float, sizeof(marketprice_float), 2, Amount);
+  char Amount[sizeof(marketprice_float) + 8];
+  char Increase[sizeof(increase_float) + 8];
+  char Ratio[sizeof(ratio_float) + 8];
 
-  char Increase[sizeof(increase_float) + 2];
-  dtostrf(increase_float, sizeof(increase_float), 2, Increase);
-
-  char Ratio[sizeof(ratio_float) + 2];
-  dtostrf(ratio_float, sizeof(ratio_float), 2, Ratio);
-
-  if (increase_float < 0){
-  inputString = ((String)tickerSymbol+" "+"$"+Amount+" "+"|"+Increase+" "+"|"+Ratio+"% ");
+  if ((String)exchangeName == "PNK") { //for OTC market 4 digit after decimal
+    dtostrf(marketprice_float, sizeof(marketprice_float), 4, Amount);
+    dtostrf(increase_float, sizeof(increase_float), 4, Increase);
+    dtostrf(ratio_float, sizeof(ratio_float), 4, Ratio);
   }
-  else if (increase_float >=0){
-  inputString = ((String)tickerSymbol+" "+"$"+Amount+" "+"^"+"+"+Increase+" "+"^"+"+"+Ratio+"% ");
+  else if ((String)exchangeName == "CCC") { //for Crypto market 4 digit after decimal
+    dtostrf(marketprice_float, sizeof(marketprice_float), 4, Amount);
+    dtostrf(increase_float, sizeof(increase_float), 4, Increase);
+    dtostrf(ratio_float, sizeof(ratio_float), 4, Ratio);
+  }
+  else {
+    dtostrf(marketprice_float, sizeof(marketprice_float), 2, Amount);
+    dtostrf(increase_float, sizeof(increase_float), 2, Increase);
+    dtostrf(ratio_float, sizeof(ratio_float), 2, Ratio);
+  }
+
+
+  if (increase_float < 0) {
+    inputString = ((String)tickerSymbol + " " + "$" + Amount + " " + "|" + Increase + " " + "|" + Ratio + "% ");
+  }
+  else if (increase_float >= 0) {
+    inputString = ((String)tickerSymbol + " " + "$" + Amount + " " + "^" + "+" + Increase + " " + "^" + "+" + Ratio + "% ");
   }
   Serial.println(inputString);
-  
+
   for (int i = 0; i < inputString.length(); i++) {
 
     byte Return = hanldeBlueetoothData();
-    if(Return == 1){
+    if (Return == 1) {
       return 1;
     }
 
@@ -112,19 +124,11 @@ byte displayled() {
     else if ((currentChar == '$')) indexValue = 43; // full stop
 
     for (int x = 0; x < charWidth; x++) {
-      if (currentStatus == 0) currentStatus = 1;
-      else if (currentStatus == 1) currentStatus = 0;
-      setStatusIndicator(currentStatus);
-
       nudgeColumns(displayLetters[indexValue][x], currentCol); // inputCols[i]); // panel.Color(0,0,255));
       displayUpdate(0);
-
       delay(DelayValue);
     }
     nudgeColumns(0, 0); // - 1 might break things here? or make things go white due to the lookup default being white
-    if (currentStatus == 0) currentStatus = 1;
-    else if (currentStatus == 1) currentStatus = 0;
-    setStatusIndicator(currentStatus);
     displayUpdate(0);
     delay(DelayValue); // this will be 200 as per the rest once confirmed that the double jump issue is done!
   }
@@ -132,29 +136,50 @@ byte displayled() {
   return 0;
 }
 
-int getIntLength(int value) {
-  // Function created by "zed_0xff" at: https://stackoverflow.com/a/3068412/7905386
-  int l = !value;
-  while (value) {
-    l++;
-    value /= 10;
+void scrollText(String text) {
+  int color = 4;//yellow
+  int indexValue;
+  for (int i = 0; i < text.length(); i++) {
+    char currentChar = text[i];
+    if ((currentChar >= 'A') && (currentChar <= 'Z')) indexValue = currentChar - 55;
+    else if ((currentChar == ' ')) indexValue = 36;
+    else if ((currentChar == '$')) indexValue = 43; // full stop
+    else indexValue = 36;//make a space
+
+    for (int x = 0; x < charWidth; x++) {
+      nudgeColumns(displayLetters[indexValue][x], color);
+      displayUpdate(0);
+      delay(DelayValue);
+    }
+    nudgeColumns(0, 0);
+    displayUpdate(0);
+    delay(DelayValue);
   }
-  return l;
 }
 
+
+//int getMappedPixel(int columnID, int rowID) {
+//  int z;
+//
+//  z = (columnSize-1) - columnID;
+//  if (columnID % 2) z++;
+//
+//  z = z * (rowSize);
+//  if (columnID % 2) z = z - rowID - 1;
+//  else z = z + rowID;
+//
+//  if (z >= ledTotal) z++;
+//  return z;
+//}
 int getMappedPixel(int columnID, int rowID) {
-  int z;
-
-  z = columnSize - columnID;
-  if (columnID % 2) z++;
-
-  z = z * (rowSize + 1);
-  if (columnID % 2) z = z - rowID - 1;
-  else z = z + rowID;
-
-  if (z >= 768) z++;
-  return z;
+  int panel_num = columnID / 8;
+  // Calculate the LED number within the panel
+  int led_num = rowID * 8 + (columnID % 8);
+  // Calculate the overall LED number
+  int overall_led_num = (panel_num * 64) + led_num;
+  return overall_led_num;
 }
+
 
 void setMappedColor(int columnID, int rowID, long pixelColor) {
   int mappedPixel = getMappedPixel(columnID, rowID);
@@ -169,8 +194,8 @@ void setMappedColor(int columnID, int rowID, long pixelColor) {
 }
 
 void colorAll(long color) {
-  for (int i = 0; i <= rowSize; i++) {
-    for (int j = 0; j <= columnSize; j++) {
+  for (int i = 0; i < rowSize; i++) {
+    for (int j = 0; j < columnSize; j++) {
       setMappedColor(j, i, color);
     }
   }
@@ -189,32 +214,26 @@ void convertToBits(byte inputValue, int outputArray[]) {
 
 void displayUpdate(long backColor) {
   colorAll(backColor);
-  for (int i = 0; i <= columnSize; i++) {
-    int columnData[rowSize + 1] = {0};
+  for (int i = 0; i < columnSize; i++) {
+    int columnData[rowSize] = {0};
     convertToBits(displayOutput[i], columnData);
-    for (int j = 0; j <= rowSize; j++) {
-      if (columnData[rowSize - j] == 1) setMappedColor(i, j, colorLookup(displayColors[i])); // was displayColors[i][j] before memory save
+    for (int j = 0; j < rowSize; j++) {
+      if (columnData[rowSize-1 - j] == 1) setMappedColor(i, j, colorLookup(displayColors[i])); // was displayColors[i][j] before memory save
     }
   }
 
   panel.show();
-  
-
 }
 
 void nudgeColumns(byte newData, byte newColor) {
-  for (int i = 0; i < columnSize; i++) {
+  for (int i = 0; i < (columnSize - 1); i++) {
     displayOutput[i] = displayOutput[i + 1];
-    for (int j = 0; j <= rowSize; j++) {
-      displayColors[i] = displayColors[i + 1];
-    }
+    displayColors[i] = displayColors[i + 1];
   }
-  displayOutput[columnSize] = newData;
+  displayOutput[columnSize - 1] = newData;
 
   if (newColor >= 0) { // created for memory save
-    for (int k = 0; k <= rowSize; k++) {
-      displayColors[columnSize] = newColor;
-    }
+    displayColors[columnSize - 1] = newColor;
   }
 }
 
@@ -250,20 +269,12 @@ long colorLookup(int inputColor) {
   return outputColor;
 }
 
-void setStatusIndicator(byte inputStatus) {
-//  if (inputStatus == 0) {
-//    digitalWrite(16, LOW);
-//  } else {
-//    digitalWrite(16, HIGH);
-//  }
-}
-
-void setBrightnessTo(int value){
+void setBrightnessTo(int value) {
   //value can be in between 0 to 100
-  int pwmVal = map(value, 0,100, 0, 255);
+  int pwmVal = map(value, 0, 100, 0, 255);
   panel.setBrightness(value);
 }
-void setScrollSpeedTo(int value){
+void setScrollSpeedTo(int value) {
   //value can be in between 0 to 100
-  DelayValue = map(value, 0,100, 500, 5);
+  DelayValue = map(value, 0, 100, 500, 5);
 }

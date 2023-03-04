@@ -10,13 +10,6 @@ byte hanldeBlueetoothData() {
 
       Serial.println(tickers);
 
-      //Setting up variables to default before breaking the loop
-      currentStatus = 0;
-      maxLoad = 0;
-      flag = 0;
-      val = 0;
-      old_val = 0;
-      state = 0;
       panel.clear();
       sendToApp('K');//'K' for okay
       return 1;//break;//break the for loop to start from i=0 and j=0;
@@ -36,13 +29,18 @@ byte hanldeBlueetoothData() {
     else if (data == 'f') {//Turn off display
       if (isDisplayOn) {
         Serial.println("OFF");
-        panel.clear();
-        ledStrip.clear();
+        panel.clear(); panel.show();
+        ledStrip.clear(); ledStrip.show();
 
         strcpy(tempTicker, tickers);
-        memset(tickers, 0, strlen(tickers)); //clear the tickers list
+        tickers[0] = 0;
+
+        displayOutput[2560] = {0};
+        displayColors[2560] = {0};
+
       }
       isDisplayOn = false;
+      return 1;//break the main foor loop
     }
 
     else if (data == 's') {//scroll speed setup
@@ -68,19 +66,10 @@ byte hanldeBlueetoothData() {
       //receives p<no of panels>
       panel_no = Bluetooth.readString().toInt();
 
-      columnSize = 32 * panel_no - 1;
-      ledTotal = 256 * panel_no;
+      columnSize = singlePanelColumns * panel_no;
+      ledTotal = singlePanleLEDs * panel_no;
 
-      //Setting up variables to default before breaking the loop
-      currentStatus = 0;
-      maxLoad = 0;
-      flag = 0;
-      val = 0;
-      old_val = 0;
-      state = 0;
-
-      panel.begin();
-      panel.clear();
+      panel.clear(); panel.show();
       Serial.println(panel_no);
 
       return 1;//break;//break the for loop to start from i=0 and j=0;
@@ -136,14 +125,14 @@ byte hanldeBlueetoothData() {
         setLEDStripColorTo(red, green, blue);
         sendToApp('K');//'K' for okay
       }
-      else{
+      else {
         Serial.println("Data Corrupted!");
         sendToApp('K');//'K' for okay
       }
 
     }
 
-    else{
+    else {
       Bluetooth.flush();
     }
 

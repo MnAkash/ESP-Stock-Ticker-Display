@@ -25,17 +25,18 @@
    Rx     -    D7
 */
 
-#include <ESP8266WiFi.h>        //Use ESP8266 functions  
-#include <WiFiClientSecure.h>
+#include <ESP8266WiFi.h>        //Use ESP8266 functions
 #include <ESP8266HTTPClient.h>
+#include <WiFiClientSecure.h>
 #include <Adafruit_NeoPixel.h>
 #include <SoftwareSerial.h>
 #include <EEPROM.h>
 #include <ArduinoJson.h>
 
+
 #define panelDinPin 14 //D5
-#define rowSize 7 // zero indexed...
-#define charWidth 5 // ** one indexed **
+#define rowSize 8
+#define charWidth 5
 
 #define LEDstripPin 5 //D1
 #define stripLEDTotal 60
@@ -49,13 +50,6 @@ bool isDisplayOn = true;//svae status whether display is on/off
 char ssid[20] = "Wifi";      //Wifi name
 char password[20] = "pass";  //WIFI Password
 
-int scroll_speed = 90;//Data scroll Speed of the display (can be in between 0-100)
-int brightness = 70; // Brightness of the display (can be in between 0-100)
-int panel_no = 1;   // How many panels connected together to form the display
-
-int DelayValue = 54;//90% speed gived delayValue of 54. Will be used to store mapped value for scroll_speed
-
-
 char serverName[] = "https://query2.finance.yahoo.com/v8/finance/chart/";
 char token[] = "?interval=1d";
 
@@ -65,41 +59,52 @@ char tickers[150] = ""; //Will be in "SPY,GE,IBM,KD,EMB)" format
 char tempTicker[150] = "";//to temporarily store tickers while turned off display
 
 char tickerSymbol[15] = "-";
+char exchangeName[10] = "";
 
 float marketprice_float, PreviousClose_float, increase_float, ratio_float;
 
 
-int ledTotal = 255;//zero indexed
-int columnSize = 31;//zero indexed
+int scroll_speed = 90;//Data scroll Speed of the display (can be in between 0-100)
+int DelayValue = 54;//90% speed gived delayValue of 54. Will be used to store mapped value for scroll_speed
+int brightness = 5; // Brightness of the display (can be in between 0-100)
 
-byte displayOutput[960] = {0};//ideally columnSize+1
-byte displayColors[960] = {0};//ideally columnSize+1
-byte currentStatus = 0; // 0 = off, 1 = on
-unsigned int maxLoad = 0;
-int flag = 0;
-int val = 0; // val will be used to store the state of the input pin
-int old_val = 0; // this variable stores the previous value of "val"
-int state = 0; // 0 = LED off and 1 = LED on
+
+int panel_no = 1;   // How many panels connected together to form the display
+int singlePanleLEDs = 256;
+int singlePanelColumns = 32;
+
+byte displayOutput[2560] = {0};//ideally columnSize
+byte displayColors[2560] = {0};//ideally columnSize
+int ledTotal = singlePanleLEDs*panel_no;
+int columnSize = singlePanelColumns*panel_no;
 
 //RGB values for led strip of housing light
 int red = 255;
 int green = 255;
 int blue = 255;
 
-Adafruit_NeoPixel panel = Adafruit_NeoPixel(ledTotal + 1, panelDinPin, NEO_RGB + NEO_KHZ800);
-Adafruit_NeoPixel ledStrip = Adafruit_NeoPixel(stripLEDTotal, LEDstripPin, NEO_RGB + NEO_KHZ800);
+Adafruit_NeoPixel panel = Adafruit_NeoPixel(1024, panelDinPin, NEO_RGB + NEO_KHZ800);
+Adafruit_NeoPixel ledStrip = Adafruit_NeoPixel(stripLEDTotal, LEDstripPin, NEO_GRB + NEO_KHZ800);
 WiFiClientSecure client;//Create a WiFi client and http client
 HTTPClient http;
 SoftwareSerial Bluetooth(D6, D7);//rxPin, txPin >> HC05(txPin, rxPin)
 
 
 void setup() {
-  client.setFingerprint("6C E9 AB 27 31 62 D0 71 D7 06 BD 0B F0 BD F7 F7 B9 1F 68 7D");
+  client.setInsecure();
   Serial.begin(115200);
   Bluetooth.begin(9600);
   EEPROM.begin(512);// Initialize EEPROM with size 512 bytes
   delay(10);
 
+  panel.begin();
+  panel.show();
+  setBrightnessTo(brightness);
+
+  ledStrip.begin();
+  setLEDStripColorTo(red, green, blue);//Initially set to White
+
+  scrollText("GOLDEN A$$ET$");
 
   if (isAlreadySaved()) {//if credentials are saved in memory connect to that address
     strcpy(ssid, readStringFromEEPROM(SSID_ADDR).c_str() );  //get ssid from EEPROM
@@ -108,12 +113,6 @@ void setup() {
   }
   else sendToApp('D');//'D' for disconnected
 
-  panel.begin();
-  panel.show();
-  setBrightnessTo(brightness);
-
-  ledStrip.begin();
-  setLEDStripColorTo(red, green, blue);//Initially set to White
 
   Serial.println("Program Started...");
 }
@@ -124,9 +123,12 @@ void loop() {
   //each ticker has 5 letter each. At best for 20 ticker, 'tickers' length can be 5*20=100
   for (int i = 0; i < 150; i++) {
 
-    if (tickers[i] == ',' || tickers[i] == ')') {
+    if (tickers[i] == 0) { //Null
+      break;
+    }
+    else if (tickers[i] == ',' || tickers[i] == ')') {
       //When "," or ")" appears, it means one ticker is ready to scrape.
-      ticker[j]= '\0';
+      ticker[j] = '\0';
       //===========Scrape data
       bool success = stockScrape(ticker);
       if (success ) {//if data scrapped successfully display data
@@ -138,7 +140,7 @@ void loop() {
         sendToApp('D');//'D' for disconnected
       }
 
-      delay(500);
+      //delay(100);
 
       char ticker[15] = "";//Then clear ticker variable for next one
       j = 0;
@@ -149,12 +151,9 @@ void loop() {
     else if (tickers[i] != 0) {
       ticker[j++] = tickers[i];//get each character one by one from tickers
     }
+
     yield();
-    byte Return = hanldeBlueetoothData();
-    if (Return == 1) {
-      break;
-    }
-    
   }//end for
+  hanldeBlueetoothData();
 
 }

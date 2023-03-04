@@ -11,6 +11,7 @@ bool stockScrape(char *tickerName) {
 //  tickerString = tickerSymbol;
   memset(tickerSymbol, 0, strlen(tickerSymbol));
   strcpy(tickerSymbol, "-");
+  memset(exchangeName, 0, strlen(exchangeName));
   
   marketprice_float = 0.0;
   increase_float = 0.0;
@@ -39,9 +40,8 @@ bool stockScrape(char *tickerName) {
           JsonObject chart_result_0_meta = chart_result_0["meta"];
 
           strcpy(tickerSymbol , chart_result_0_meta["symbol"]);
-          //tickerString = tickerSymbol;
-
-
+          strcpy(exchangeName , chart_result_0_meta["exchangeName"]);
+          
           marketprice_float = chart_result_0_meta["regularMarketPrice"];
           PreviousClose_float = chart_result_0_meta["chartPreviousClose"];
 
@@ -68,8 +68,12 @@ bool stockScrape(char *tickerName) {
       }
       else //If we can't get data
       {
+        strcpy(tickerSymbol, "-");
+        marketprice_float = 0.00;
+        increase_float = 0.00;
+        ratio_float = 0.00;
         Serial.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
-        return false;
+        return true;
       }
 
       http.end();
